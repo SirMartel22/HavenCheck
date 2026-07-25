@@ -9,9 +9,13 @@ MESSAGES = [
     "Is this suspicious: Pay the inspection fee now before viewing. Address later. Today only!",
 ]
 
-for message in MESSAGES:
+for index, message in enumerate(MESSAGES, start=1):
     try:
-        response = httpx.post(f"{BASE_URL}/agent", json={"message": message}, timeout=60)
+        response = httpx.post(
+            f"{BASE_URL}/agent",
+            json={"message": message, "sessionId": f"curl-agent-sample-{index}"},
+            timeout=60,
+        )
         print(json.dumps(response.json(), indent=2))
     except Exception as exc:
         print(f"Request failed: {exc}")

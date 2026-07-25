@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 from typing import Any
+import base64
 import os
 import json
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, File, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, File, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -18,7 +19,7 @@ import cloudinary.uploader
 load_dotenv()
 from db import Base, engine, get_db  # noqa: E402
 from gemma_client import GemmaClient, GemmaError  # noqa: E402
-from models import Hostel, UtilityReport  # noqa: E402
+from models import ChatMessage, Hostel, UtilityReport  # noqa: E402
 from tools import (  # noqa: E402
     alert_community_security,
     check_rent_fairness,
@@ -26,6 +27,7 @@ from tools import (  # noqa: E402
     flag_scam_risk,
     notify_hostel_authority,
 )
+from voice import VoiceError, speak, transcribe_audio  # noqa: E402
 
 # Configure Cloudinary
 cloudinary.config(
@@ -45,8 +47,13 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 
 class AgentRequest(BaseModel):
     message: str = Field(min_length=1)
+    session_id: str | None = Field(None, alias="sessionId")
     hostel_id: str | None = Field(None, alias="hostelId")
     model_config = ConfigDict(populate_by_name=True)
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1)
 
 
 class HostelCreate(BaseModel):
@@ -184,6 +191,17 @@ def hostel_dict(hostel: Hostel, include_reports: bool = False) -> dict:
         data["utility_reports"] = [report_dict(r) for r in hostel.utility_reports]
     return data
 
+
+def chat_message_dict(message: ChatMessage) -> dict:
+    return {
+        "id": message.id,
+        "sessionId": message.session_id,
+        "hostelId": message.hostel_id,
+        "role": message.role,
+        "content": message.content,
+        "createdAt": message.created_at.isoformat() if message.created_at else None,
+    }
+
 @app.get("/", response_model=ApiResponse)
 def root():
     return response("Welcome to the Housing Scout API. Access /docs for API documentation.", {"status": "ok"})
@@ -191,6 +209,112 @@ def root():
 @app.get("/health", response_model=ApiResponse)
 def health():
     return response("API is healthy", {"status": "ok"})
+
+
+@app.get("/chat/history", response_model=ApiResponse)
+def chat_history(
+    session_id: str | None = Query(None, alias="sessionId"),
+    hostel_id: str | None = Query(None, alias="hostelId"),
+    db: Session = Depends(get_db),
+):
+    if not session_id or not session_id.strip():
+        raise HTTPException(400, "sessionId is required")
+
+    stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id.strip())
+        .order_by(ChatMessage.created_at, ChatMessage.id)
+    )
+    if hostel_id:
+        stmt = stmt.where(ChatMessage.hostel_id == hostel_id)
+    messages = [chat_message_dict(item) for item in db.scalars(stmt)]
+    return response("Chat history retrieved successfully", {"messages": messages})
+
+
+@app.post("/voice/transcribe")
+async def voice_transcribe(audio: UploadFile = File(...)):
+    try:
+        content = await audio.read()
+        if not content:
+            raise HTTPException(400, "Audio file is empty")
+        text_value = transcribe_audio(
+            content,
+            audio.filename or "recording.webm",
+            audio.content_type or "application/octet-stream",
+        )
+        return {"text": text_value}
+    except HTTPException:
+        raise
+    except VoiceError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.post("/voice/chat", response_model=ApiResponse)
+async def voice_chat(
+    audio: UploadFile = File(...),
+    session_id: str | None = Form(None, alias="sessionId"),
+    hostel_id: str | None = Form(None, alias="hostelId"),
+    speak_reply: bool = Form(True, alias="speakReply"),
+    db: Session = Depends(get_db),
+):
+    if not session_id or not session_id.strip():
+        raise HTTPException(400, "sessionId is required")
+    content = await audio.read()
+    if not content:
+        raise HTTPException(400, "Audio file is empty")
+    try:
+        transcript = transcribe_audio(
+            content,
+            audio.filename or "recording.webm",
+            audio.content_type or "application/octet-stream",
+        )
+    except VoiceError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    agent_result = run_agent(
+        AgentRequest(
+            message=transcript,
+            sessionId=session_id,
+            hostelId=hostel_id,
+        ),
+        db,
+    )
+    agent_data = agent_result["data"]
+    reply = agent_data.get("reply")
+    audio_base64 = None
+    voice_error = None
+    if speak_reply and reply:
+        try:
+            audio_base64 = base64.b64encode(speak(reply)).decode("ascii")
+        except VoiceError as exc:
+            voice_error = str(exc)
+
+    return response(
+        "Voice chat completed",
+        {
+            "transcript": transcript,
+            "reply": reply,
+            "tool_used": agent_data.get("tool_used"),
+            "tool_calls": agent_data.get("tool_calls", []),
+            "audioBase64": audio_base64,
+            "audioContentType": "audio/mpeg" if audio_base64 else None,
+            "voiceError": voice_error,
+        },
+        error=agent_result["error"],
+    )
+
+
+@app.post("/voice/speak")
+def voice_speak(payload: SpeakRequest):
+    try:
+        audio = speak(payload.text)
+        return Response(
+            content=audio,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": 'inline; filename="speech.mp3"'},
+        )
+    except VoiceError as exc:
+        raise HTTPException(502, str(exc)) from exc
 
 
 @app.post("/mock-email")
@@ -346,31 +470,83 @@ def alert_security_direct(hostel_id: str, payload: AlertSecurityRequest, db: Ses
     )
 
 
-@app.post("/agent", response_model=ApiResponse)
-def agent(payload: AgentRequest, db: Session = Depends(get_db)):
+def run_agent(payload: AgentRequest, db: Session) -> dict:
+    if not payload.session_id or not payload.session_id.strip():
+        raise HTTPException(400, "sessionId is required")
+    session_id = payload.session_id.strip()
+    hostel_id = payload.hostel_id.strip() if payload.hostel_id else None
+    if hostel_id and db.get(Hostel, hostel_id) is None:
+        raise HTTPException(404, "Hostel not found")
+
+    user_message = ChatMessage(
+        session_id=session_id,
+        hostel_id=hostel_id,
+        role="user",
+        content=payload.message,
+    )
+    db.add(user_message)
+    db.commit()
+
+    history_stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at, ChatMessage.id)
+    )
+    if hostel_id:
+        history_stmt = history_stmt.where(ChatMessage.hostel_id == hostel_id)
+    history = [
+        {"role": item.role, "content": item.content}
+        for item in db.scalars(history_stmt)
+    ]
+    if hostel_id and history:
+        history[-1]["content"] = (
+            f"[Current hostel ID: {hostel_id}. Default hostel-specific tool "
+            f"arguments to this ID.] {history[-1]['content']}"
+        )
+
     client = GemmaClient()
-    message = payload.message
-    # Inject hostelId into context if provided
-    if payload.hostel_id:
-        message = f"[Hostel ID: {payload.hostel_id}] {message}"
+    message = history[-1]["content"]
 
     def dispatch(name: str, args: dict[str, Any]) -> dict:
         if name == "checkRentFairness":
             return check_rent_fairness(db, args["location"], args["priceNaira"], args.get("amenities"))
         if name == "checkUtilityReliability":
-            return check_utility_reliability(db, args["hostelId"])
+            selected_hostel_id = args.get("hostelId") or hostel_id
+            if not selected_hostel_id:
+                return {"error": "hostelId is required"}
+            return check_utility_reliability(db, selected_hostel_id)
         if name == "flagScamRisk":
-            return flag_scam_risk(db, args["listingText"], args.get("chatTranscript"), client.explain_scam_flags, payload.hostel_id)
+            return flag_scam_risk(db, args["listingText"], args.get("chatTranscript"), client.explain_scam_flags, hostel_id)
         if name == "notifyHostelAuthority":
-            return notify_hostel_authority(args["hostelId"], args["issueType"], args["details"])
+            selected_hostel_id = args.get("hostelId") or hostel_id
+            if not selected_hostel_id:
+                return {"error": "hostelId is required"}
+            return notify_hostel_authority(selected_hostel_id, args["issueType"], args["details"])
         if name == "alertCommunitySecurity":
-            return alert_community_security(args["hostelId"], args["reason"], args.get("evidence", ""))
+            selected_hostel_id = args.get("hostelId") or hostel_id
+            if not selected_hostel_id:
+                return {"error": "hostelId is required"}
+            return alert_community_security(selected_hostel_id, args["reason"], args.get("evidence", ""))
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        reply, calls = client.ask(message, dispatch)
+        reply, calls = client.ask(message, dispatch, history=history)
+        db.add(
+            ChatMessage(
+                session_id=session_id,
+                hostel_id=hostel_id,
+                role="assistant",
+                content=reply,
+            )
+        )
+        db.commit()
         return response("Agent request completed", {"reply": reply, "tool_used": ", ".join(call["name"] for call in calls) or None, "tool_calls": calls})
     except GemmaError as exc:
         return response("Housing Scout's AI service is temporarily unavailable. Please retry shortly.", {"reply": None, "tool_used": None, "tool_calls": []}, error={"code": "GEMMA_UNAVAILABLE", "details": str(exc)})
     except Exception as exc:
         return response("I could not complete that check, but the API is still running.", {"reply": None, "tool_used": None, "tool_calls": []}, error={"code": "AGENT_ERROR", "details": str(exc)})
+
+
+@app.post("/agent", response_model=ApiResponse)
+def agent(payload: AgentRequest, db: Session = Depends(get_db)):
+    return run_agent(payload, db)

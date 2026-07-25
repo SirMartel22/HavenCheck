@@ -52,6 +52,14 @@ AUTHORITY_EMAIL_TO=authority@example.com
 SECURITY_EMAIL_TO=security@example.com
 RESEND_FROM_EMAIL=Housing Scout <alerts@yourdomain.com>  # optional, but recommended for live mail
 GEMMA_MODEL=gemma-3-27b-it  # optional override
+GROQ_API_KEY=your-groq-api-key
+TTS_PROVIDER=easyvoice
+EASYVOICE_API_KEY=your-easyvoice-api-key
+EASYVOICE_API_URL=https://easyvoice.ae/api/v1/audio/speech
+EASYVOICE_MODEL=kokoro-82m
+EASYVOICE_VOICE=af_aoede
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_VOICE_ID=your-premade-voice-id
 ```
 
 ### Render setup steps
@@ -132,12 +140,62 @@ curl -X POST http://127.0.0.1:8000/hostels/hostel-tanke-01/reports -H "Content-T
 Ask the agent:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Is 150k for a room in Tanke fair?"}'
-curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Has hostel-tanke-01 had water problems?"}'
-curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Is this a scam: Pay now before viewing, address later, today only!"}'
+curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Is 150k for a room in Tanke fair?","sessionId":"browser-session-123"}'
+curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Has this hostel had water problems?","sessionId":"browser-session-123","hostelId":"hostel-tanke-01"}'
+curl -X POST http://127.0.0.1:8000/agent -H "Content-Type: application/json" -d '{"message":"Is this a scam: Pay now before viewing, address later, today only!","sessionId":"browser-session-123"}'
 ```
 
 Run all three agent samples with `python test_agent.py`, optionally passing a base URL.
+
+Restore session-scoped chat history:
+
+```bash
+curl "http://127.0.0.1:8000/chat/history?sessionId=browser-session-123"
+curl "http://127.0.0.1:8000/chat/history?sessionId=browser-session-123&hostelId=hostel-tanke-01"
+```
+
+`sessionId` is mandatory for both `/agent` and `/chat/history`. History
+queries always filter by that ID and never return messages from other
+sessions.
+
+Transcribe a browser recording with Groq:
+
+```bash
+curl -X POST http://127.0.0.1:8000/voice/transcribe \
+  -F "audio=@recording.webm"
+```
+
+Run the complete voice-chat pipeline in one backend request:
+
+```bash
+curl -X POST http://127.0.0.1:8000/voice/chat \
+  -F "audio=@recording.webm" \
+  -F "sessionId=browser-session-123" \
+  -F "hostelId=hostel-tanke-01" \
+  -F "speakReply=true"
+```
+
+The JSON response includes `transcript`, `reply`, tool-call details, and an
+optional base64-encoded MP3 in `audioBase64`. Set `speakReply=false` for
+text-only output. Transcription and chat failures return clear errors; a TTS
+failure leaves the text reply intact and sets `voiceError`.
+
+Generate MP3 speech with the currently selected provider:
+
+```bash
+curl -X POST http://127.0.0.1:8000/voice/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text":"This hostel is within the normal price range."}' \
+  --output speech.mp3
+```
+
+Test EasyVoice independently by setting `TTS_PROVIDER=easyvoice`, restarting
+the API, and running the `/voice/speak` curl command. Test ElevenLabs with
+`TTS_PROVIDER=elevenlabs` and the same command. Both return `audio/mpeg`, so
+clients do not need provider-specific handling.
+
+Switch TTS provider anytime via TTS_PROVIDER in .env — no code changes
+needed. Use easyvoice or elevenlabs depending on which has remaining credits.
 
 ## Seed data contract
 

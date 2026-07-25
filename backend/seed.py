@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import inspect, text
 
 from db import Base, engine, session_scope
-from models import AreaPriceAverage, Hostel, ScamTranscript, UtilityReport
+from models import AreaPriceAverage, ChatMessage, Hostel, ScamTranscript, UtilityReport
 
 DATA_DIR = Path(__file__).parent / "seed_data"
 
@@ -17,6 +17,7 @@ SERIAL_TABLES = (
     "area_price_averages",
     "utility_reports",
     "scam_transcripts",
+    "chat_messages",
 )
 
 
@@ -68,6 +69,7 @@ def seed():
     Base.metadata.create_all(bind=engine)
     migrate()
     with session_scope() as db:
+        db.query(ChatMessage).delete()
         db.query(UtilityReport).delete()
         db.query(ScamTranscript).delete()
         db.query(Hostel).delete()
