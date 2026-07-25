@@ -7,14 +7,13 @@ Independent FastAPI API for checking Unilorin-area hostel rent fairness, utility
 Requires Python 3.11+ and PostgreSQL. SQLite is used automatically when `DATABASE_URL` is absent, which makes first-hour demos easy.
 
 ```powershell
-cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
+pip install -r backend/requirements.txt
+Copy-Item backend/.env.example .env
 # Edit .env, then:
-python seed.py
-uvicorn main:app --reload
+python -m backend.seed
+uvicorn backend.app:app --reload
 ```
 
 Open `http://127.0.0.1:8000/docs` for interactive API docs. For PostgreSQL, create the database and either run `psql "$DATABASE_URL" -f schema.sql` or let SQLAlchemy create the tables when the app/seed script starts.
@@ -29,13 +28,13 @@ This backend can run on Render as a Python web service.
 - Build command:
 
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 - Start command:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port $PORT
+uvicorn backend.app:app --host 0.0.0.0 --port $PORT
 ```
 
 - Health check path: `/health`
@@ -57,7 +56,7 @@ GEMMA_MODEL=gemma-3-27b-it  # optional override
 ### Render setup steps
 
 1. Create a new Render Web Service and connect this repository.
-2. Set the root directory to `backend`.
+2. Leave the root directory set to the repository root.
 3. Choose Python 3.11 as the runtime.
 4. Use the build command above and the start command above.
 5. Add the environment variables listed above.
@@ -67,7 +66,7 @@ GEMMA_MODEL=gemma-3-27b-it  # optional override
 
 - Render’s PostgreSQL service is the best option for production-style deployments.
 - The app will create tables automatically on startup when `DATABASE_URL` points to a reachable PostgreSQL database.
-- If you want the seeded demo data to exist immediately, run `python seed.py` once after deployment (for example from a Render shell session or a one-off job).
+- If you want the seeded demo data to exist immediately, run `python -m backend.seed` once after deployment (for example from a Render shell session or a one-off job).
 
 ### Important notes
 
