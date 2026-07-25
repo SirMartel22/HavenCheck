@@ -67,9 +67,22 @@ class GemmaClient:
         except (KeyError, IndexError, TypeError) as exc:
             raise GemmaError(f"{provider} returned an unexpected response") from exc
 
-    def ask(self, message: str, dispatcher) -> tuple[str, list[dict]]:
+    def ask(
+        self,
+        message: str,
+        dispatcher,
+        history: list[dict[str, str]] | None = None,
+    ) -> tuple[str, list[dict]]:
         # Use Google API for full tool-calling flow (most reliable)
-        contents: list[dict] = [{"role": "user", "parts": [{"text": message}]}]
+        contents: list[dict] = [
+            {
+                "role": "model" if item["role"] == "assistant" else "user",
+                "parts": [{"text": item["content"]}],
+            }
+            for item in (history or [])
+        ]
+        if not contents:
+            contents = [{"role": "user", "parts": [{"text": message}]}]
         calls_made: list[dict] = []
         for _ in range(4):
             payload = {"systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]}, "contents": contents, "tools": [{"functionDeclarations": TOOL_DECLARATIONS}]}
@@ -78,7 +91,17 @@ class GemmaClient:
             except Exception as exc:
                 # Try OpenRouter as fallback
                 try:
-                    response = self._post_openrouter({"model": self.openrouter_model, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": message}], "temperature": 1})
+                    openrouter_messages = [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        *[
+                            {
+                                "role": item["role"],
+                                "content": item["content"],
+                            }
+                            for item in (history or [{"role": "user", "content": message}])
+                        ],
+                    ]
+                    response = self._post_openrouter({"model": self.openrouter_model, "messages": openrouter_messages, "temperature": 1})
                     provider = "openrouter"
                 except:
                     raise GemmaError(f"Both APIs failed for ask(): {exc}") from exc

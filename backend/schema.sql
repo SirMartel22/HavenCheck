@@ -41,3 +41,14 @@ CREATE TABLE IF NOT EXISTS scam_transcripts (
     transcript_text TEXT NOT NULL,
     is_scam BOOLEAN NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR NOT NULL,
+    hostel_id VARCHAR NULL REFERENCES hostels(id),
+    role VARCHAR NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);

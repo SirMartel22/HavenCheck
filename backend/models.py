@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -59,3 +59,19 @@ class ScamTranscript(Base):
     hostel_id: Mapped[str | None] = mapped_column(ForeignKey("hostels.id", ondelete="SET NULL"), nullable=True)
     transcript_text: Mapped[str] = mapped_column(Text, nullable=False)
     is_scam: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (Index("idx_chat_session", "session_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String, nullable=False)
+    hostel_id: Mapped[str | None] = mapped_column(
+        ForeignKey("hostels.id"), nullable=True
+    )
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.now
+    )
