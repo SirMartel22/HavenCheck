@@ -1,5 +1,6 @@
 import re
 from collections.abc import Callable
+from typing import Any
 
 
 PATTERNS = {
@@ -13,9 +14,11 @@ PATTERNS = {
 
 
 def flag_scam_risk(
+    db: Any,
     listing_text: str,
     chat_transcript: str | None = None,
     reason_provider: Callable[[str, list[str]], list[str]] | None = None,
+    hostel_id: str | None = None,
 ) -> dict:
     text = "\n".join(filter(None, [listing_text, chat_transcript]))
     flags = [name for name, pattern in PATTERNS.items() if pattern.search(text)]
@@ -34,4 +37,16 @@ def flag_scam_risk(
                 reasons = enhanced
         except Exception:
             pass
+    
+    # Persist risk level if hostel_id is provided
+    if hostel_id and db:
+        try:
+            from models import Hostel
+            hostel = db.query(Hostel).filter(Hostel.id == hostel_id).first()
+            if hostel:
+                hostel.scam_risk_level = risk_level
+                db.commit()
+        except Exception:
+            pass  # Silently ignore persistence errors
+    
     return {"risk_level": risk_level, "flags": flags, "reasons": reasons, "error": None}

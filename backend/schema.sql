@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS hostels (
     description TEXT NOT NULL,
     photo_url VARCHAR NULL,
     lat DOUBLE PRECISION NULL,
-    lng DOUBLE PRECISION NULL
+    lng DOUBLE PRECISION NULL,
+    is_school_managed BOOLEAN NOT NULL DEFAULT FALSE,
+    scam_risk_level VARCHAR NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_hostels_location ON hostels (location);
