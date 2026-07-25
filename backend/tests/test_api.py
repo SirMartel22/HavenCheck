@@ -6,7 +6,7 @@ os.environ["DATABASE_URL"] = "sqlite:///./test_api.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 from db import engine  # noqa: E402
-from main import app  # noqa: E402
+from backend.app import app  # noqa: E402
 
 
 class ApiContractTests(unittest.TestCase):
