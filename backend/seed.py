@@ -13,6 +13,11 @@ HOSTEL_COLUMN_MIGRATIONS = {
     "is_school_managed": "BOOLEAN NOT NULL DEFAULT FALSE",
     "scam_risk_level": "VARCHAR NULL",
 }
+SERIAL_TABLES = (
+    "area_price_averages",
+    "utility_reports",
+    "scam_transcripts",
+)
 
 
 def load(name: str) -> list[dict]:
@@ -43,6 +48,22 @@ def migrate():
             print(f"Added hostels.{name}.")
 
 
+def sync_postgres_sequences(db):
+    if db.bind.dialect.name != "postgresql":
+        return
+
+    for table_name in SERIAL_TABLES:
+        db.execute(
+            text(
+                "SELECT setval("
+                f"pg_get_serial_sequence('{table_name}', 'id'), "
+                "COALESCE(MAX(id), 1), "
+                "MAX(id) IS NOT NULL"
+                f") FROM {table_name}"
+            )
+        )
+
+
 def seed():
     Base.metadata.create_all(bind=engine)
     migrate()
@@ -63,6 +84,8 @@ def seed():
             db.add(UtilityReport(**row))
         for row in load("scam_transcripts.json"):
             db.add(ScamTranscript(**row))
+        db.flush()
+        sync_postgres_sequences(db)
     print("Seed data loaded successfully.")
 
 
