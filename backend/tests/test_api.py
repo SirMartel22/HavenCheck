@@ -5,8 +5,8 @@ from pathlib import Path
 os.environ["DATABASE_URL"] = "sqlite:///./test_api.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
-from backend.db import engine  # noqa: E402
-from backend.app import app  # noqa: E402
+from db import engine  # noqa: E402
+from app import app  # noqa: E402
 
 
 class ApiContractTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class ApiContractTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from backend.db import Base
+        from db import Base
         Base.metadata.create_all(bind=engine)
 
     @classmethod

@@ -16,10 +16,10 @@ import cloudinary
 import cloudinary.uploader
 
 load_dotenv()
-from .db import Base, engine, get_db  # noqa: E402
-from .gemma_client import GemmaClient, GemmaError  # noqa: E402
-from .models import Hostel, UtilityReport  # noqa: E402
-from .tools import (  # noqa: E402
+from db import Base, engine, get_db  # noqa: E402
+from gemma_client import GemmaClient, GemmaError  # noqa: E402
+from models import Hostel, UtilityReport  # noqa: E402
+from tools import (  # noqa: E402
     alert_community_security,
     check_rent_fairness,
     check_utility_reliability,
