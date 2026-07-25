@@ -13,6 +13,11 @@ class ApiContractTests(unittest.TestCase):
     client = TestClient(app)
 
     @classmethod
+    def setUpClass(cls):
+        from db import Base
+        Base.metadata.create_all(bind=engine)
+
+    @classmethod
     def tearDownClass(cls):
         cls.client.close()
         engine.dispose()

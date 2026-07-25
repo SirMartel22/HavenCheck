@@ -19,6 +19,8 @@ class Hostel(Base):
     photo_url: Mapped[str | None] = mapped_column(String, nullable=True)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_school_managed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    scam_risk_level: Mapped[str | None] = mapped_column(String, nullable=True)
 
     utility_reports: Mapped[list["UtilityReport"]] = relationship(
         back_populates="hostel", cascade="all, delete-orphan"

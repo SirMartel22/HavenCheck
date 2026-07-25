@@ -1,15 +1,19 @@
 from datetime import datetime, timezone
 from typing import Any
+import os
+import json
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, File, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 from starlette.exceptions import HTTPException as StarletteHTTPException
+import cloudinary
+import cloudinary.uploader
 
 load_dotenv()
 from db import Base, engine, get_db  # noqa: E402
@@ -23,13 +27,26 @@ from tools import (  # noqa: E402
     notify_hostel_authority,
 )
 
-Base.metadata.create_all(bind=engine)
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+)
+
 app = FastAPI(title="Housing Scout API", version="1.0.0")
+
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 
 
 class AgentRequest(BaseModel):
     message: str = Field(min_length=1)
+    hostel_id: str | None = Field(None, alias="hostelId")
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class HostelCreate(BaseModel):
@@ -38,9 +55,9 @@ class HostelCreate(BaseModel):
     price_naira: int = Field(alias="priceNaira", gt=0)
     amenities: list[str] = Field(default_factory=list)
     description: str
-    photo_url: str | None = None
     lat: float | None = None
     lng: float | None = None
+    photo_url: str | None = Field(None, alias="photoUrl")
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -48,6 +65,18 @@ class ReportCreate(BaseModel):
     water_available: bool
     electricity_issue: bool
     comment: str
+
+
+class NotifyAuthorityRequest(BaseModel):
+    issue_type: str = Field(alias="issueType")
+    details: str
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AlertSecurityRequest(BaseModel):
+    reason: str
+    evidence: str = ""
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Action(BaseModel):
@@ -99,12 +128,58 @@ async def unexpected_exception_handler(_request: Request, exc: Exception):
     )
 
 
+def detect_image_type(content: bytes) -> str | None:
+    if len(content) < 12:
+        return None
+    # Check magic bytes for PNG, JPEG, GIF, and WebP
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"GIF87a") or content.startswith(b"GIF89a"):
+        return "image/gif"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+async def upload_image_to_cloudinary(file: UploadFile) -> str | None:
+    """Upload image to Cloudinary and return the URL"""
+    if not file:
+        return None
+    
+    # 5MB size limit
+    MAX_SIZE = 5 * 1024 * 1024
+    try:
+        file_content = await file.read()
+        if len(file_content) > MAX_SIZE:
+            raise HTTPException(400, "File size exceeds the 5MB limit.")
+        
+        # Detect the true content type using magic bytes on the backend
+        true_type = detect_image_type(file_content)
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        if true_type not in allowed_types:
+            raise HTTPException(400, "Only JPEG, PNG, GIF, and WebP images are allowed.")
+        
+        result = cloudinary.uploader.upload(
+            file_content,
+            folder="housing-scout",
+            resource_type="image",
+            public_id=f"hostel_{os.urandom(8).hex()}"
+        )
+        return result.get("secure_url")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"Image upload failed: {exc}")
+
+
 def report_dict(report: UtilityReport) -> dict:
     return {"id": report.id, "hostel_id": report.hostel_id, "water_available": report.water_available, "electricity_issue": report.electricity_issue, "comment": report.comment, "reported_at": report.reported_at.isoformat() if report.reported_at else None}
 
 
 def hostel_dict(hostel: Hostel, include_reports: bool = False) -> dict:
-    data = {"id": hostel.id, "name": hostel.name, "location": hostel.location, "priceNaira": hostel.price_naira, "amenities": hostel.amenities or [], "description": hostel.description, "photo_url": hostel.photo_url, "lat": hostel.lat, "lng": hostel.lng, "utility_reports": []}
+    data = {"id": hostel.id, "name": hostel.name, "location": hostel.location, "priceNaira": hostel.price_naira, "amenities": hostel.amenities or [], "description": hostel.description, "photo_url": hostel.photo_url, "lat": hostel.lat, "lng": hostel.lng, "isSchoolManaged": hostel.is_school_managed, "scamRiskLevel": hostel.scam_risk_level, "utility_reports": []}
     if include_reports:
         data["utility_reports"] = [report_dict(r) for r in hostel.utility_reports]
     return data
@@ -115,9 +190,82 @@ def health():
     return response("API is healthy", {"status": "ok"})
 
 
+@app.post("/mock-email")
+def mock_email(payload: dict):
+    return {"message": "Email sent mock successfully", "payload": payload}
+
+
 @app.post("/hostels", status_code=201, response_model=ApiResponse)
-def create_hostel(payload: HostelCreate, db: Session = Depends(get_db)):
-    hostel = Hostel(**payload.model_dump(by_alias=False))
+async def create_hostel(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create a hostel with optional image upload to Cloudinary, supporting both JSON and multipart form data"""
+    content_type = request.headers.get("content-type", "")
+    photo_file = None
+    photo_url = None
+    
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            payload = HostelCreate.model_validate(body)
+            # Support passing a photo URL in JSON body directly
+            photo_url = body.get("photo_url") or body.get("photoUrl")
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors())
+        except Exception as exc:
+            raise RequestValidationError(errors=[{"loc": ["body"], "msg": str(exc), "type": "value_error"}])
+    elif "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        try:
+            form = await request.form()
+            photo_item = form.get("photo")
+            if isinstance(photo_item, UploadFile):
+                photo_file = photo_item
+            
+            # amenities parsing
+            amenities_val = form.get("amenities", "[]")
+            try:
+                amenities_list = json.loads(amenities_val) if isinstance(amenities_val, str) else amenities_val
+                if not isinstance(amenities_list, list):
+                    amenities_list = []
+            except Exception:
+                amenities_list = []
+            
+            price_val = form.get("priceNaira") or form.get("price_naira")
+            
+            payload_data = {
+                "name": form.get("name"),
+                "location": form.get("location"),
+                "priceNaira": int(price_val) if price_val is not None else None,
+                "description": form.get("description", ""),
+                "amenities": amenities_list,
+                "lat": float(form.get("lat")) if form.get("lat") else None,
+                "lng": float(form.get("lng")) if form.get("lng") else None,
+            }
+            # Remove keys with None values to let Pydantic handle validation/defaults
+            payload_data = {k: v for k, v in payload_data.items() if v is not None}
+            payload = HostelCreate.model_validate(payload_data)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors())
+        except Exception as exc:
+            raise RequestValidationError(errors=[{"loc": ["body"], "msg": str(exc), "type": "value_error"}])
+    else:
+        raise HTTPException(415, "Unsupported Media Type. Must be application/json or multipart/form-data")
+
+    # Upload image to Cloudinary if a file was uploaded in form data
+    if photo_file:
+        photo_url = await upload_image_to_cloudinary(photo_file)
+    
+    hostel = Hostel(
+        name=payload.name,
+        location=payload.location,
+        price_naira=payload.price_naira,
+        description=payload.description,
+        amenities=payload.amenities,
+        lat=payload.lat,
+        lng=payload.lng,
+        photo_url=photo_url or payload.photo_url,
+    )
     db.add(hostel)
     db.commit()
     db.refresh(hostel)
@@ -142,6 +290,20 @@ def get_hostel(hostel_id: str, db: Session = Depends(get_db)):
     return response("Hostel retrieved successfully", {"hostel": hostel_dict(hostel, include_reports=True)})
 
 
+@app.put("/hostels/{hostel_id}/photo", response_model=ApiResponse)
+async def update_hostel_photo(hostel_id: str, photo: UploadFile, db: Session = Depends(get_db)):
+    """Update hostel photo on Cloudinary"""
+    hostel = db.get(Hostel, hostel_id)
+    if hostel is None:
+        raise HTTPException(404, "Hostel not found")
+    
+    photo_url = await upload_image_to_cloudinary(photo)
+    hostel.photo_url = photo_url
+    db.commit()
+    db.refresh(hostel)
+    return response("Hostel photo updated successfully", {"hostel": hostel_dict(hostel)})
+
+
 @app.post("/hostels/{hostel_id}/reports", status_code=201, response_model=ApiResponse)
 def create_report(hostel_id: str, payload: ReportCreate, db: Session = Depends(get_db)):
     if db.get(Hostel, hostel_id) is None:
@@ -153,9 +315,41 @@ def create_report(hostel_id: str, payload: ReportCreate, db: Session = Depends(g
     return response("Utility report created successfully", {"report": report_dict(report)})
 
 
+@app.post("/hostels/{hostel_id}/notify-authority", response_model=ApiResponse)
+def notify_authority_direct(hostel_id: str, payload: NotifyAuthorityRequest, db: Session = Depends(get_db)):
+    if db.get(Hostel, hostel_id) is None:
+        raise HTTPException(404, "Hostel not found")
+    result = notify_hostel_authority(hostel_id, payload.issue_type, payload.details)
+    status = result.get("status", "failed")
+    timestamp = result.get("timestamp")
+    return response(
+        f"Authority notification {'sent successfully' if status == 'sent' else 'failed'}",
+        {"status": status, "timestamp": timestamp},
+        error={"code": "NOTIFY_FAILED", "details": result.get("error")} if status == "failed" else None
+    )
+
+
+@app.post("/hostels/{hostel_id}/alert-security", response_model=ApiResponse)
+def alert_security_direct(hostel_id: str, payload: AlertSecurityRequest, db: Session = Depends(get_db)):
+    if db.get(Hostel, hostel_id) is None:
+        raise HTTPException(404, "Hostel not found")
+    result = alert_community_security(hostel_id, payload.reason, payload.evidence)
+    status = result.get("status", "failed")
+    timestamp = result.get("timestamp")
+    return response(
+        f"Security alert {'sent successfully' if status == 'sent' else 'failed'}",
+        {"status": status, "timestamp": timestamp},
+        error={"code": "ALERT_FAILED", "details": result.get("error")} if status == "failed" else None
+    )
+
+
 @app.post("/agent", response_model=ApiResponse)
 def agent(payload: AgentRequest, db: Session = Depends(get_db)):
     client = GemmaClient()
+    message = payload.message
+    # Inject hostelId into context if provided
+    if payload.hostel_id:
+        message = f"[Hostel ID: {payload.hostel_id}] {message}"
 
     def dispatch(name: str, args: dict[str, Any]) -> dict:
         if name == "checkRentFairness":
@@ -163,7 +357,7 @@ def agent(payload: AgentRequest, db: Session = Depends(get_db)):
         if name == "checkUtilityReliability":
             return check_utility_reliability(db, args["hostelId"])
         if name == "flagScamRisk":
-            return flag_scam_risk(args["listingText"], args.get("chatTranscript"), client.explain_scam_flags)
+            return flag_scam_risk(db, args["listingText"], args.get("chatTranscript"), client.explain_scam_flags, payload.hostel_id)
         if name == "notifyHostelAuthority":
             return notify_hostel_authority(args["hostelId"], args["issueType"], args["details"])
         if name == "alertCommunitySecurity":
@@ -171,7 +365,7 @@ def agent(payload: AgentRequest, db: Session = Depends(get_db)):
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        reply, calls = client.ask(payload.message, dispatch)
+        reply, calls = client.ask(message, dispatch)
         return response("Agent request completed", {"reply": reply, "tool_used": ", ".join(call["name"] for call in calls) or None, "tool_calls": calls})
     except GemmaError as exc:
         return response("Housing Scout's AI service is temporarily unavailable. Please retry shortly.", {"reply": None, "tool_used": None, "tool_calls": []}, error={"code": "GEMMA_UNAVAILABLE", "details": str(exc)})

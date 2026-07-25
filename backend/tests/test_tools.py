@@ -37,21 +37,27 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(result["electricity_issue_count"], 1)
 
     def test_scam_rules(self):
-        result = flag_scam_risk("Pay a deposit now before viewing. Address later. Urgent, no ID.")
+        result = flag_scam_risk(self.db, "Pay a deposit now before viewing. Address later. Urgent, no ID.")
         self.assertEqual(result["risk_level"], "high")
         self.assertGreaterEqual(len(result["flags"]), 3)
 
-    @patch.dict("os.environ", {"RESEND_API_KEY": "re_test", "AUTHORITY_EMAIL_TO": "authority@example.com"}, clear=False)
-    @patch("tools.notify.resend.Emails.send", return_value={"id": "email-authority"})
-    def test_authority_email(self, send):
+    @patch.dict("os.environ", {"EMAIL_URL": "emailope.vercel.app", "AUTHORITY_EMAIL_TO": "authority@example.com"}, clear=False)
+    @patch("httpx.post")
+    def test_authority_email(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.raise_for_status = lambda: None
         result = notify_hostel_authority("h1", "water", "No water")
         self.assertEqual(result["status"], "sent")
-        self.assertEqual(result["email_id"], "email-authority")
-        self.assertEqual(send.call_args.args[0]["subject"], "Hostel Authority Alert: h1")
+        self.assertIsNotNone(result["email_id"])
+        mock_post.assert_called_once()
+        called_args, called_kwargs = mock_post.call_args
+        self.assertEqual(called_args[0], "https://emailope.vercel.app")
+        self.assertEqual(called_kwargs["json"]["to"], "authority@example.com")
+        self.assertIn("Hostel Authority Alert: h1", called_kwargs["json"]["subject"])
 
-    @patch.dict("os.environ", {"RESEND_API_KEY": "re_test", "SECURITY_EMAIL_TO": "security@example.com"}, clear=False)
-    @patch("tools.security.resend.Emails.send", side_effect=RuntimeError("API unavailable"))
-    def test_security_email_failure_is_safe(self, _send):
+    @patch.dict("os.environ", {"EMAIL_URL": "emailope.vercel.app", "SECURITY_EMAIL_TO": "security@example.com"}, clear=False)
+    @patch("httpx.post", side_effect=Exception("API unavailable"))
+    def test_security_email_failure_is_safe(self, mock_post):
         result = alert_community_security("h1", "Suspected scam", "Chat transcript")
         self.assertEqual(result["status"], "failed")
         self.assertIn("timestamp", result)
