@@ -1,0 +1,7 @@
+[
+  {"id":1,"location":"Tanke","avg_price_naira":155000,"price_range_low":120000,"price_range_high":190000},
+  {"id":2,"location":"Sabo-Oke","avg_price_naira":135000,"price_range_low":100000,"price_range_high":170000},
+  {"id":3,"location":"Fate/Fanfuwa","avg_price_naira":175000,"price_range_low":135000,"price_range_high":215000},
+  {"id":4,"location":"Oke-Odo","avg_price_naira":150000,"price_range_low":110000,"price_range_high":190000},
+  {"id":5,"location":"Pipeline","avg_price_naira":195000,"price_range_low":150000,"price_range_high":240000}
+]
