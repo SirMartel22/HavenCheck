@@ -2,8 +2,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from .db import Base, engine, session_scope
-from .models import AreaPriceAverage, Hostel, ScamTranscript, UtilityReport
+from db import Base, engine, session_scope
+from models import AreaPriceAverage, Hostel, ScamTranscript, UtilityReport
 
 DATA_DIR = Path(__file__).parent / "seed_data"
 

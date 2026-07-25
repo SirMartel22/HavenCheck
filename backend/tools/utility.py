@@ -1,7 +1,7 @@
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from ..models import Hostel, UtilityReport
+from models import Hostel, UtilityReport
 
 
 def check_utility_reliability(db: Session, hostel_id: str) -> dict:

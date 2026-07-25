@@ -3,13 +3,13 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from backend.db import Base
-from backend.models import AreaPriceAverage, Hostel, UtilityReport
-from backend.tools.rent import check_rent_fairness
-from backend.tools.scam import flag_scam_risk
-from backend.tools.utility import check_utility_reliability
-from backend.tools.notify import notify_hostel_authority
-from backend.tools.security import alert_community_security
+from db import Base
+from models import AreaPriceAverage, Hostel, UtilityReport
+from tools.rent import check_rent_fairness
+from tools.scam import flag_scam_risk
+from tools.utility import check_utility_reliability
+from tools.notify import notify_hostel_authority
+from tools.security import alert_community_security
 
 
 class ToolTests(unittest.TestCase):

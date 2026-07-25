@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import AreaPriceAverage
+from models import AreaPriceAverage
 
 
 def check_rent_fairness(
