@@ -1,14 +1,14 @@
 [
-  {"id":1,"hostel_id":"hostel-tanke-01","water_available":true,"electricity_issue":false,"comment":"Water ran each morning this week.","reported_at":"2026-07-20T09:00:00+00:00"},
-  {"id":2,"hostel_id":"hostel-tanke-01","water_available":false,"electricity_issue":true,"comment":"No pumping for two days after a power fault.","reported_at":"2026-07-12T16:30:00+00:00"},
-  {"id":3,"hostel_id":"hostel-tanke-01","water_available":true,"electricity_issue":false,"comment":"Borehole is working again.","reported_at":"2026-07-18T11:00:00+00:00"},
-  {"id":4,"hostel_id":"hostel-tanke-02","water_available":true,"electricity_issue":true,"comment":"Water is steady but generator was unavailable.","reported_at":"2026-07-17T08:00:00+00:00"},
-  {"id":5,"hostel_id":"hostel-sabo-01","water_available":false,"electricity_issue":false,"comment":"Well is low during dry weeks.","reported_at":"2026-07-15T12:00:00+00:00"},
-  {"id":6,"hostel_id":"hostel-sabo-02","water_available":true,"electricity_issue":false,"comment":"No utility problems this month.","reported_at":"2026-07-21T14:00:00+00:00"},
-  {"id":7,"hostel_id":"hostel-fanfuwa-01","water_available":true,"electricity_issue":true,"comment":"Frequent evening voltage drops.","reported_at":"2026-07-16T19:00:00+00:00"},
-  {"id":8,"hostel_id":"hostel-fanfuwa-02","water_available":false,"electricity_issue":true,"comment":"Pump and meter both need attention.","reported_at":"2026-07-19T07:00:00+00:00"},
-  {"id":9,"hostel_id":"hostel-okeodo-01","water_available":true,"electricity_issue":false,"comment":"Water available twice daily.","reported_at":"2026-07-20T06:00:00+00:00"},
-  {"id":10,"hostel_id":"hostel-okeodo-02","water_available":true,"electricity_issue":false,"comment":"Utilities have been reliable.","reported_at":"2026-07-22T10:00:00+00:00"},
-  {"id":11,"hostel_id":"hostel-pipeline-01","water_available":true,"electricity_issue":false,"comment":"Solar and borehole are working.","reported_at":"2026-07-23T13:00:00+00:00"},
-  {"id":12,"hostel_id":"hostel-pipeline-02","water_available":true,"electricity_issue":true,"comment":"Meter trips when several rooms use appliances.","reported_at":"2026-07-14T20:00:00+00:00"}
+  {"id":1,"hostel_id":"bd616ac1-3824-5a90-ae8a-ba1a0929c261","water_available":true,"electricity_issue":false,"comment":"Water ran each morning this week.","reported_at":"2026-07-20T09:00:00+00:00"},
+  {"id":2,"hostel_id":"bd616ac1-3824-5a90-ae8a-ba1a0929c261","water_available":false,"electricity_issue":true,"comment":"No pumping for two days after a power fault.","reported_at":"2026-07-12T16:30:00+00:00"},
+  {"id":3,"hostel_id":"bd616ac1-3824-5a90-ae8a-ba1a0929c261","water_available":true,"electricity_issue":false,"comment":"Borehole is working again.","reported_at":"2026-07-18T11:00:00+00:00"},
+  {"id":4,"hostel_id":"afa60d68-9c8b-52b0-9da9-fac602a5c52e","water_available":true,"electricity_issue":true,"comment":"Water is steady but generator was unavailable.","reported_at":"2026-07-17T08:00:00+00:00"},
+  {"id":5,"hostel_id":"970a5c93-0971-52a7-8f5c-7d9ebdd61062","water_available":true,"electricity_issue":false,"comment":"Borehole and common-area lights are reliable.","reported_at":"2026-07-15T12:00:00+00:00"},
+  {"id":6,"hostel_id":"49c17d6c-59e2-5022-a7ef-3619f68e501e","water_available":false,"electricity_issue":false,"comment":"The well runs low after busy mornings.","reported_at":"2026-07-21T14:00:00+00:00"},
+  {"id":7,"hostel_id":"28cb2c50-9c48-5d7a-b097-8c907490a8a4","water_available":true,"electricity_issue":true,"comment":"Water is available but evening power has been inconsistent.","reported_at":"2026-07-16T19:00:00+00:00"},
+  {"id":8,"hostel_id":"55ef26f9-883c-5d67-a835-2fef6aba6b2b","water_available":true,"electricity_issue":false,"comment":"Utilities worked throughout the week.","reported_at":"2026-07-19T07:00:00+00:00"},
+  {"id":9,"hostel_id":"5ccba48d-0a1a-5efb-8470-254b10a08c9c","water_available":true,"electricity_issue":false,"comment":"Water is available twice daily.","reported_at":"2026-07-20T06:00:00+00:00"},
+  {"id":10,"hostel_id":"f3733e4f-43ef-52b5-a857-5075bac368cc","water_available":true,"electricity_issue":false,"comment":"Wi-Fi, solar lighting, and water are currently working.","reported_at":"2026-07-22T10:00:00+00:00"},
+  {"id":11,"hostel_id":"1fdc0646-94ce-54d7-bc7f-f5298bbe9e23","water_available":true,"electricity_issue":true,"comment":"Water is steady, but the prepaid meter tripped once.","reported_at":"2026-07-23T13:00:00+00:00"},
+  {"id":12,"hostel_id":"21543b6c-eb0b-5e91-a02b-4eeb21a8cc6f","water_available":true,"electricity_issue":false,"comment":"Backup utilities were available during the last outage.","reported_at":"2026-07-14T20:00:00+00:00"}
 ]
