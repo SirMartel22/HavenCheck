@@ -844,18 +844,31 @@ def run_agent(payload: AgentRequest, db: Session) -> dict:
     db.add(user_message)
     db.commit()
 
-    history_stmt = (
-        select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at, ChatMessage.id)
+    history_stmt = select(ChatMessage).where(
+        ChatMessage.session_id == session_id
     )
     if hostel_id:
         history_stmt = history_stmt.where(ChatMessage.hostel_id == hostel_id)
     else:
         history_stmt = history_stmt.where(ChatMessage.hostel_id.is_(None))
+    try:
+        recent_message_limit = int(
+            os.getenv("AGENT_RECENT_MESSAGE_LIMIT", "12")
+        )
+    except ValueError:
+        recent_message_limit = 12
+    recent_message_limit = max(2, min(recent_message_limit, 50))
+    recent_messages = list(
+        db.scalars(
+            history_stmt.order_by(
+                ChatMessage.created_at.desc(),
+                ChatMessage.id.desc(),
+            ).limit(recent_message_limit)
+        )
+    )
     history = [
         {"role": item.role, "content": item.content}
-        for item in db.scalars(history_stmt)
+        for item in reversed(recent_messages)
     ]
     if hostel_id and history:
         hostel = db.get(Hostel, hostel_id)
@@ -883,6 +896,64 @@ def run_agent(payload: AgentRequest, db: Session) -> dict:
     message = history[-1]["content"]
 
     def dispatch(name: str, args: dict[str, Any]) -> dict:
+        if name == "searchConversationMemory":
+            query = str(args.get("query", "")).strip()
+            if not query:
+                return {
+                    "query": query,
+                    "count": 0,
+                    "matches": [],
+                    "error": "query is required",
+                }
+            requested_role = args.get("role")
+            try:
+                result_limit = max(1, min(int(args.get("limit", 5)), 10))
+            except (TypeError, ValueError):
+                result_limit = 5
+            memory_stmt = select(ChatMessage).where(
+                ChatMessage.session_id == session_id,
+                func.lower(ChatMessage.content).contains(
+                    query.lower(),
+                    autoescape=True,
+                ),
+            )
+            if hostel_id:
+                memory_stmt = memory_stmt.where(
+                    ChatMessage.hostel_id == hostel_id
+                )
+            else:
+                memory_stmt = memory_stmt.where(
+                    ChatMessage.hostel_id.is_(None)
+                )
+            if requested_role in {"user", "assistant"}:
+                memory_stmt = memory_stmt.where(
+                    ChatMessage.role == requested_role
+                )
+            items = list(
+                db.scalars(
+                    memory_stmt.order_by(
+                        ChatMessage.created_at.desc(),
+                        ChatMessage.id.desc(),
+                    ).limit(result_limit)
+                )
+            )
+            return {
+                "query": query,
+                "count": len(items),
+                "matches": [
+                    {
+                        "role": item.role,
+                        "content": item.content,
+                        "createdAt": (
+                            item.created_at.isoformat()
+                            if item.created_at
+                            else None
+                        ),
+                    }
+                    for item in reversed(items)
+                ],
+                "error": None,
+            }
         if name == "searchHostels":
             return search_hostels(
                 db,

@@ -142,6 +142,77 @@ class ApiContractTests(unittest.TestCase):
             ["Hostel question", "Hostel reply"],
         )
 
+    @patch.dict(
+        "os.environ",
+        {"AGENT_RECENT_MESSAGE_LIMIT": "2"},
+    )
+    @patch("app.GemmaClient.ask", return_value=("Short reply", []))
+    def test_agent_only_receives_bounded_recent_history(self, ask):
+        for number in range(3):
+            result = self.client.post(
+                "/agent",
+                json={
+                    "message": f"Memory message {number}",
+                    "sessionId": "bounded-memory-session",
+                },
+            )
+            self.assertEqual(result.status_code, 200)
+
+        model_history = ask.call_args.kwargs["history"]
+        self.assertEqual(len(model_history), 2)
+        self.assertEqual(
+            [item["content"] for item in model_history],
+            ["Short reply", "Memory message 2"],
+        )
+
+    @patch("app.GemmaClient.ask")
+    def test_conversation_search_is_forced_to_active_session(self, ask):
+        call_number = 0
+
+        def answer(_message, dispatcher, history):
+            nonlocal call_number
+            call_number += 1
+            if call_number < 3:
+                return ("Stored reply", [])
+            search_result = dispatcher(
+                "searchConversationMemory",
+                {"query": "private-needle", "role": "user"},
+            )
+            self.assertEqual(search_result["count"], 1)
+            self.assertEqual(
+                search_result["matches"][0]["content"],
+                "My private-needle preference",
+            )
+            return ("I found your earlier message.", [])
+
+        ask.side_effect = answer
+        self.client.post(
+            "/agent",
+            json={
+                "message": "My private-needle preference",
+                "sessionId": "memory-owner",
+            },
+        )
+        self.client.post(
+            "/agent",
+            json={
+                "message": "Another private-needle message",
+                "sessionId": "different-session",
+            },
+        )
+        result = self.client.post(
+            "/agent",
+            json={
+                "message": "What did I say earlier?",
+                "sessionId": "memory-owner",
+            },
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(
+            result.json()["data"]["reply"],
+            "I found your earlier message.",
+        )
+
     @patch("app.transcribe_audio", return_value="Transcribed speech")
     def test_voice_transcribe(self, _transcribe):
         result = self.client.post(
