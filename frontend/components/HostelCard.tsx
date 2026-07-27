@@ -10,12 +10,13 @@ export function HostelCard({ hostel }: HostelCardProps) {
 
   return (
     <Link href={`/hostels/${hostel.id}`} className={`group block overflow-hidden rounded-[28px] border ${riskTone} p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:-translate-y-1`}>
-      <div className="aspect-[4/3] overflow-hidden rounded-[20px] bg-zinc-900">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-gradient-to-br from-cyan-500/30 via-fuchsia-500/20 to-amber-400/30">
         {hostel.photo_url ? (
-          <img src={hostel.photo_url} alt={hostel.name} className="h-full w-full object-cover grayscale transition duration-300 group-hover:scale-105" />
+          <img src={hostel.photo_url} alt={hostel.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm uppercase tracking-[0.3em] text-zinc-400">No image</div>
+          <div className="flex h-full items-center justify-center text-sm uppercase tracking-[0.3em] text-white/90">No image</div>
         )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/10" />
       </div>
       <div className="mt-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
