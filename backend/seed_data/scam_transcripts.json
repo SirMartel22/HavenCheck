@@ -1,8 +1,8 @@
 [
-  {"id":1,"hostel_id":"cf05d2b2-13da-54d8-9d88-a3146cbcb333","transcript_text":"Pay the commitment fee now before viewing. Address later. Today only!","is_scam":true},
+  {"id":1,"hostel_id":"hostel-tanke-03","transcript_text":"Pay the commitment fee now before viewing. Address later. Today only!","is_scam":true},
   {"id":2,"hostel_id":null,"transcript_text":"Transfer inspection money immediately. I cannot share the address and have no ID.","is_scam":true},
   {"id":3,"hostel_id":null,"transcript_text":"Another person is paying, send a deposit now before inspection.","is_scam":true},
-  {"id":4,"hostel_id":"bd616ac1-3824-5a90-ae8a-ba1a0929c261","transcript_text":"You can inspect Saturday. Here is the full address and my agency ID; pay only after paperwork.","is_scam":false},
-  {"id":5,"hostel_id":"55ef26f9-883c-5d67-a835-2fef6aba6b2b","transcript_text":"Meet the caretaker at the property. Verify the allocation documents before deciding.","is_scam":false},
-  {"id":6,"hostel_id":"1fdc0646-94ce-54d7-bc7f-f5298bbe9e23","transcript_text":"Inspection is free. Bring a friend and do not transfer until you sign a receipt.","is_scam":false}
+  {"id":4,"hostel_id":"hostel-tanke-01","transcript_text":"You can inspect Saturday. Here is the full address and my agency ID; pay only after paperwork.","is_scam":false},
+  {"id":5,"hostel_id":"hostel-sabo-02","transcript_text":"Meet the caretaker at the property. Verify the landlord documents before deciding.","is_scam":false},
+  {"id":6,"hostel_id":"hostel-okeodo-01","transcript_text":"Inspection is free. Bring a friend and do not transfer until you sign a receipt.","is_scam":false}
 ]
