@@ -6,6 +6,7 @@ import httpx
 
 TOOL_DECLARATIONS = [
     {"name": "searchHostels", "description": "Searches the HavenCheck database by hostel name, location, or both and returns matching listing details, including its trusted frontendUrl. When a student asks for a link, return that exact frontendUrl as plain text and never construct or guess another URL.", "parameters": {"type": "object", "properties": {"name": {"type": "string", "description": "An optional full or partial hostel name."}, "location": {"type": "string", "description": "An optional full or partial location such as Tanke or University of Ilorin."}}}},
+    {"name": "searchConversationMemory", "description": "Searches older messages and assistant answers in only the active conversation session and current chat scope. Use this when the student asks what they said, asked, discussed, or were told previously.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "Words or a short phrase to find in prior messages."}, "role": {"type": "string", "enum": ["user", "assistant"], "description": "Optionally search only the student's messages or only previous assistant answers."}, "limit": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Maximum matches to return."}}, "required": ["query"]}},
     {"name": "checkRentFairness", "description": "Compares a quoted hostel rent price against typical prices for the area and amenities to flag overpricing.", "parameters": {"type": "object", "properties": {"location": {"type": "string"}, "priceNaira": {"type": "number"}, "amenities": {"type": "array", "items": {"type": "string"}}}, "required": ["location", "priceNaira"]}},
     {"name": "checkUtilityReliability", "description": "Retrieves and summarizes recent crowd-sourced reports on water and electricity reliability for a specific hostel.", "parameters": {"type": "object", "properties": {"hostelId": {"type": "string"}}, "required": ["hostelId"]}},
     {"name": "flagScamRisk", "description": "Analyzes listing text or landlord/agent chat messages for common racketeering or scam patterns.", "parameters": {"type": "object", "properties": {"listingText": {"type": "string"}, "chatTranscript": {"type": "string"}}, "required": ["listingText"]}},
@@ -27,6 +28,10 @@ and begin it with a plain hyphen.
 
 Use the provided tools for factual checks and escalation. Never invent database
 facts or claim an email was sent unless its tool result says it was sent.
+Only the recent part of the active conversation is provided automatically.
+When the student refers to an older message, question, answer, or discussion,
+call searchConversationMemory using the important words they remember. Treat
+its results as private to the active session and current general-or-hostel chat.
 When a student mentions a hostel name or asks what is available in a location
 without a current hostel context, call searchHostels. Present matching database
 details clearly. For a location search, give a useful concise comparison rather
