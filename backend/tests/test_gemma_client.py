@@ -43,6 +43,17 @@ class GemmaOutputFormattingTests(unittest.TestCase):
             "Rent · ₦150,000",
         )
 
+    def test_preserves_link_destination_as_visible_plain_text(self):
+        value = GemmaClient._user_facing_text(
+            "[Open Harmony Lodge]"
+            "(http://localhost:3000/hostels/example-id)"
+        )
+        self.assertEqual(
+            value,
+            "Open Harmony Lodge: "
+            "http://localhost:3000/hostels/example-id",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
