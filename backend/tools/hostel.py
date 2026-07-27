@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -37,6 +39,10 @@ def search_hostels(
         Hostel.price_naira,
         Hostel.name,
     ).limit(20)
+    frontend_base_url = os.getenv(
+        "NEXT_PUBLIC_API_BASE_LIVE_FE_URL",
+        "http://localhost:3000",
+    ).rstrip("/")
     matches = [
         {
             "id": hostel.id,
@@ -50,6 +56,7 @@ def search_hostels(
             "lng": hostel.lng,
             "isSchoolManaged": hostel.is_school_managed,
             "scamRiskLevel": hostel.scam_risk_level,
+            "frontendUrl": f"{frontend_base_url}/hostels/{hostel.id}",
         }
         for hostel in db.scalars(stmt)
     ]
