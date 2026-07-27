@@ -33,11 +33,22 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(result["difference_from_average_pct"], 30.0)
 
     def test_hostel_name_search_returns_complete_listing_details(self):
-        result = search_hostels(self.db, "tes")
+        with patch.dict(
+            "os.environ",
+            {
+                "NEXT_PUBLIC_API_BASE_LIVE_FE_URL":
+                    "https://havencheck.example/app/"
+            },
+        ):
+            result = search_hostels(self.db, "tes")
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["matches"][0]["name"], "Test")
         self.assertEqual(result["matches"][0]["priceNaira"], 150000)
         self.assertEqual(result["matches"][0]["location"], "Tanke")
+        self.assertEqual(
+            result["matches"][0]["frontendUrl"],
+            "https://havencheck.example/app/hostels/h1",
+        )
 
     def test_hostel_location_search_returns_matching_listings(self):
         result = search_hostels(self.db, location="tank")
