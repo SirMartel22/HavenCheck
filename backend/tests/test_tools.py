@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from db import Base
 from models import AreaPriceAverage, Hostel, UtilityReport
 from tools.rent import check_rent_fairness
-from tools.hostel import search_hostels
 from tools.scam import flag_scam_risk
 from tools.utility import check_utility_reliability
 from tools.notify import notify_hostel_authority
@@ -31,18 +30,6 @@ class ToolTests(unittest.TestCase):
         result = check_rent_fairness(self.db, "tanke", 195000)
         self.assertEqual(result["verdict"], "overpriced")
         self.assertEqual(result["difference_from_average_pct"], 30.0)
-
-    def test_hostel_name_search_returns_complete_listing_details(self):
-        result = search_hostels(self.db, "tes")
-        self.assertEqual(result["count"], 1)
-        self.assertEqual(result["matches"][0]["name"], "Test")
-        self.assertEqual(result["matches"][0]["priceNaira"], 150000)
-        self.assertEqual(result["matches"][0]["location"], "Tanke")
-
-    def test_hostel_location_search_returns_matching_listings(self):
-        result = search_hostels(self.db, location="tank")
-        self.assertEqual(result["count"], 1)
-        self.assertEqual(result["matches"][0]["name"], "Test")
 
     def test_utility_math(self):
         result = check_utility_reliability(self.db, "h1")

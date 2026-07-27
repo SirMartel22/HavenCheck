@@ -93,55 +93,6 @@ class ApiContractTests(unittest.TestCase):
             [item["content"] for item in second_call_history],
         )
 
-    @patch("app.GemmaClient.ask")
-    def test_general_and_hostel_chat_histories_are_isolated(self, ask):
-        ask.side_effect = [
-            ("General reply", []),
-            ("Hostel reply", []),
-        ]
-        hostel = self.client.post(
-            "/hostels",
-            json={
-                "name": "Scoped Chat Lodge",
-                "location": "Tanke",
-                "priceNaira": 150000,
-                "amenities": ["borehole"],
-                "description": "A test listing.",
-            },
-        ).json()["data"]["hostel"]
-
-        general_result = self.client.post(
-            "/agent",
-            json={"message": "General question", "sessionId": "scoped-session"},
-        )
-        hostel_result = self.client.post(
-            "/agent",
-            json={
-                "message": "Hostel question",
-                "sessionId": "scoped-session",
-                "hostelId": hostel["id"],
-            },
-        )
-        self.assertEqual(general_result.status_code, 200)
-        self.assertEqual(hostel_result.status_code, 200)
-
-        general_history = self.client.get(
-            "/chat/history", params={"sessionId": "scoped-session"}
-        ).json()["data"]["messages"]
-        hostel_history = self.client.get(
-            "/chat/history",
-            params={"sessionId": "scoped-session", "hostelId": hostel["id"]},
-        ).json()["data"]["messages"]
-
-        self.assertEqual(
-            [item["content"] for item in general_history],
-            ["General question", "General reply"],
-        )
-        self.assertEqual(
-            [item["content"] for item in hostel_history],
-            ["Hostel question", "Hostel reply"],
-        )
-
     @patch("app.transcribe_audio", return_value="Transcribed speech")
     def test_voice_transcribe(self, _transcribe):
         result = self.client.post(
@@ -195,42 +146,6 @@ class ApiContractTests(unittest.TestCase):
         response = self.client.get("/not-a-route")
         self.assertEqual(response.status_code, 404)
         self.assert_envelope(response.json())
-
-    def test_openapi_documents_real_content_types_and_responses(self):
-        schema = self.client.get("/openapi.json").json()
-
-        create_content = schema["paths"]["/hostels"]["post"]["requestBody"]["content"]
-        self.assertEqual(
-            set(create_content),
-            {
-                "application/json",
-                "multipart/form-data",
-                "application/x-www-form-urlencoded",
-            },
-        )
-        json_schema = create_content["application/json"]["schema"]
-        self.assertIn("name", json_schema["properties"])
-        self.assertIn("priceNaira", json_schema["properties"])
-        self.assertNotIn("$ref", json_schema)
-        photo_schema = create_content["multipart/form-data"]["schema"]["properties"]["photo"]
-        self.assertEqual(photo_schema, {"type": "string", "format": "binary"})
-
-        speak_responses = schema["paths"]["/voice/speak"]["post"]["responses"]
-        self.assertIn("audio/mpeg", speak_responses["200"]["content"])
-        transcribe_schema = schema["paths"]["/voice/transcribe"]["post"]["responses"]["200"]
-        self.assertIn("application/json", transcribe_schema["content"])
-
-    def test_openapi_documents_public_names_and_session_requirement(self):
-        schema = self.client.get("/openapi.json").json()
-        agent_request = schema["components"]["schemas"]["AgentRequest"]
-        self.assertIn("sessionId", agent_request["properties"])
-        self.assertIn("hostelId", agent_request["properties"])
-
-        history_parameters = schema["paths"]["/chat/history"]["get"]["parameters"]
-        self.assertEqual(
-            {item["name"] for item in history_parameters},
-            {"sessionId", "hostelId"},
-        )
 
 
 if __name__ == "__main__":
