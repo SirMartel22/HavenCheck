@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import cloudinary
 import cloudinary.uploader
 
+load_dotenv(".env.local")
 load_dotenv()
 from db import Base, engine, get_db  # noqa: E402
 from gemma_client import GemmaClient, GemmaError  # noqa: E402
@@ -867,6 +868,10 @@ def run_agent(payload: AgentRequest, db: Session) -> dict:
             "description": hostel.description,
             "isSchoolManaged": hostel.is_school_managed,
             "scamRiskLevel": hostel.scam_risk_level,
+            "frontendUrl": (
+                f"{os.getenv('NEXT_PUBLIC_API_BASE_LIVE_FE_URL', 'http://localhost:3000').rstrip('/')}"
+                f"/hostels/{hostel.id}"
+            ),
         }
         history[-1]["content"] = (
             "TRUSTED CURRENT HOSTEL DATA FROM THE DATABASE:\n"

@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 
 TOOL_DECLARATIONS = [
-    {"name": "searchHostels", "description": "Searches the HavenCheck database by hostel name, location, or both and returns matching listing details, including ID, location, rent, amenities, description, image, coordinates, management status, and scam risk.", "parameters": {"type": "object", "properties": {"name": {"type": "string", "description": "An optional full or partial hostel name."}, "location": {"type": "string", "description": "An optional full or partial location such as Tanke or University of Ilorin."}}}},
+    {"name": "searchHostels", "description": "Searches the HavenCheck database by hostel name, location, or both and returns matching listing details, including its trusted frontendUrl. When a student asks for a link, return that exact frontendUrl as plain text and never construct or guess another URL.", "parameters": {"type": "object", "properties": {"name": {"type": "string", "description": "An optional full or partial hostel name."}, "location": {"type": "string", "description": "An optional full or partial location such as Tanke or University of Ilorin."}}}},
     {"name": "checkRentFairness", "description": "Compares a quoted hostel rent price against typical prices for the area and amenities to flag overpricing.", "parameters": {"type": "object", "properties": {"location": {"type": "string"}, "priceNaira": {"type": "number"}, "amenities": {"type": "array", "items": {"type": "string"}}}, "required": ["location", "priceNaira"]}},
     {"name": "checkUtilityReliability", "description": "Retrieves and summarizes recent crowd-sourced reports on water and electricity reliability for a specific hostel.", "parameters": {"type": "object", "properties": {"hostelId": {"type": "string"}}, "required": ["hostelId"]}},
     {"name": "flagScamRisk", "description": "Analyzes listing text or landlord/agent chat messages for common racketeering or scam patterns.", "parameters": {"type": "object", "properties": {"listingText": {"type": "string"}, "chatTranscript": {"type": "string"}}, "required": ["listingText"]}},
@@ -32,6 +32,9 @@ without a current hostel context, call searchHostels. Present matching database
 details clearly. For a location search, give a useful concise comparison rather
 than dumping raw records. If several names match ambiguously, show a short list
 and ask which one they mean.
+When the student asks for a hostel link, return the exact frontendUrl supplied
+by searchHostels. Print the full URL as plain text so the chat UI makes it
+recognizable. Never guess a route, hostname, or hostel ID.
 When trusted current-hostel data is included with the latest question:
 - use its ID automatically for hostel-specific tools;
 - for affordability questions, call checkRentFairness with its location, rent,
@@ -142,8 +145,16 @@ class GemmaClient:
         text = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", text)
         text = re.sub(r"(?m)^\s*>\s?", "", text)
         text = re.sub(r"(?m)^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", "", text)
-        text = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", text)
-        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        text = re.sub(
+            r"!\[([^\]]*)\]\(([^)]+)\)",
+            lambda match: (
+                f"{match.group(1)}: {match.group(2)}"
+                if match.group(1)
+                else match.group(2)
+            ),
+            text,
+        )
+        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1: \2", text)
         text = re.sub(r"\[\^([^\]]+)\]", r"\1", text)
         text = re.sub(r"(?m)^\s*[-*+]\s+\[[ xX]\]\s+", "• ", text)
         text = re.sub(r"(\*\*|__)(.+?)\1", r"\2", text)
