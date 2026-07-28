@@ -34,8 +34,9 @@ export default async function HostelDetailPage({ params }: { params: Promise<{ h
                 ))}
               </div>
             </div>
-            <div className="overflow-hidden rounded-[24px] border border-white/15 bg-white/10">
-              {hostel.photo_url ? <img src={hostel.photo_url} alt={hostel.name} className="h-full min-h-64 w-full object-cover grayscale" /> : <div className="flex h-full min-h-64 items-center justify-center text-sm uppercase tracking-[0.3em] text-zinc-400">No image</div>}
+            <div className="relative overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-br from-cyan-500/30 via-fuchsia-500/20 to-amber-400/30">
+              {hostel.photo_url ? <img src={hostel.photo_url} alt={hostel.name} className="h-full min-h-64 w-full object-cover" /> : <div className="flex h-full min-h-64 items-center justify-center text-sm uppercase tracking-[0.3em] text-white/90">No image</div>}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
             </div>
           </div>
 
